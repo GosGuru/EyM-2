@@ -1,14 +1,12 @@
 // Minimal WooCommerce REST client for headless WordPress/WooCommerce
 // Required envs:
-// - WP_JSON_URL (e.g. http://localhost:8882/wp-json)
+// - WP_JSON_URL or WC_BASE_URL (e.g. http://localhost:8882/wp-json)
 // - WC_CONSUMER_KEY
 // - WC_CONSUMER_SECRET
-//
-// Notes:
-// - On Vercel, set these in Project Settings > Environment Variables.
-// - For local dev, add to .env.local.
 
 import { mockWcCategories, mockWcProducts } from './mockData.js';
+
+export type WcMode = 'live' | 'mock';
 
 export type WcProduct = {
   id: number;
@@ -30,205 +28,6 @@ export type WcCategory = {
   image?: { src: string } | null;
 };
 
-// Verificar si WooCommerce está configurado correctamente
-function isWcAvailable(): boolean {
-  const hasUrl = !!(process.env.WP_JSON_URL || process.env.WP_API_URL || process.env.WC_BASE_URL);
-  const hasKeys = !!(process.env.WC_CONSUMER_KEY && process.env.WC_CONSUMER_SECRET);
-  return hasUrl && hasKeys;
-}
-
-function getBase(): string {
-  const raw = process.env.WP_JSON_URL || process.env.WP_API_URL || process.env.WC_BASE_URL; // added WC_BASE_URL support
-  if (!raw) {
-    // Durante el build, no fallar - usar placeholder
-    if (typeof window === 'undefined') {
-      console.warn('⚠️ WP_JSON_URL no configurado, usando placeholder para build');
-      return 'https://placeholder.local/wp-json';
-    }
-    throw new Error("WP_JSON_URL is not set");
-  }
-  const base = raw.replace(/\/$/, "");
-  // Ensure it includes /wp-json
-  return base.includes('/wp-json') ? base : `${base}/wp-json`;
-}
-
-function getAuth(): string {
-  const key = process.env.WC_CONSUMER_KEY;
-  const secret = process.env.WC_CONSUMER_SECRET;
-  if (!key || !secret) {
-    // Durante el build, no fallar - usar placeholder
-    if (typeof window === 'undefined') {
-      console.warn('⚠️ WooCommerce keys no configuradas, usando placeholder para build');
-      return 'Basic placeholder-auth';
-    }
-    throw new Error("WooCommerce keys are missing (WC_CONSUMER_KEY/WC_CONSUMER_SECRET)");
-  }
-  // Basic auth header
-  const token = Buffer.from(`${key}:${secret}`).toString('base64');
-  return `Basic ${token}`;
-}
-
-// Simple dev-time memoization to avoid hammering WP when HMR triggers frequently
-// Uses a global Map so it survives module reloads in Next dev server
-const __DEV_WC_CACHE__ = (globalThis as any).__DEV_WC_CACHE__ || new Map<string, { t: number; data?: any; promise?: Promise<any> }>();
-(globalThis as any).__DEV_WC_CACHE__ = __DEV_WC_CACHE__;
-
-async function wcFetch<T>(path: string, init?: RequestInit & { revalidate?: number }) {
-  const base = getBase();
-  const url = `${base}/wc/v3${path}`;
-  const revalidate = init?.revalidate ?? 60;
-
-  // In dev, dedupe and throttle identical requests for a short TTL
-  if (process.env.NODE_ENV !== 'production' && (!init?.method || init?.method.toUpperCase() === 'GET')) {
-    const ttlMs = Number(process.env.WC_DEV_TTL_MS || 10000); // default 10s
-    const key = `${init?.method || 'GET'} ${url} ${init?.body ? JSON.stringify(init.body) : ''}`;
-    const hit = __DEV_WC_CACHE__.get(key);
-    const now = Date.now();
-    if (hit) {
-      if (hit.promise) return hit.promise as Promise<T>;
-      if (hit.data && now - hit.t < ttlMs) return hit.data as T;
-    }
-    const p = (async () => {
-      const res = await fetch(url, {
-        headers: { Authorization: getAuth() },
-        cache: init?.method ? 'no-store' : 'force-cache',
-        next: { revalidate },
-        ...init,
-      });
-      if (!res.ok) throw new Error(`WooCommerce fetch failed ${res.status}: ${url}`);
-      const json = (await res.json()) as T;
-      __DEV_WC_CACHE__.set(key, { t: Date.now(), data: json });
-      return json;
-    })();
-    __DEV_WC_CACHE__.set(key, { t: now, promise: p });
-    return p;
-  }
-
-  // Production: rely on Next.js cache/ISR
-  const res = await fetch(url, {
-    headers: { Authorization: getAuth() },
-    cache: init?.method ? 'no-store' : 'force-cache',
-    next: { revalidate },
-    ...init,
-  });
-  if (!res.ok) throw new Error(`WooCommerce fetch failed ${res.status}: ${url}`);
-  return (await res.json()) as T;
-}
-
-export async function wcFetchProducts(params: { per_page?: number; category?: number | string; featured?: boolean; revalidate?: number } = {}): Promise<WcProduct[]> {
-  try {
-    // Durante el build o si WooCommerce no está configurado, usar mock data
-    if (!isWcAvailable() || typeof window === 'undefined') {
-      console.warn('🔧 WooCommerce no configurado o build time, usando datos mock');
-      
-      let products = [...mockWcProducts];
-      
-      // Filtrar por categoría si se especifica
-      if (params.category) {
-        products = products.filter(p => 
-          p.categories?.some(c => c.id === params.category || c.slug === params.category)
-        );
-      }
-      
-      // Filtrar productos destacados (simulamos con los últimos productos)
-      if (params.featured) {
-        products = products.slice(-4); // Los últimos 4 como "destacados"
-      }
-      
-      // Limitar cantidad
-      if (params.per_page) {
-        products = products.slice(0, params.per_page);
-      }
-      
-      return products;
-    }
-
-    const search = new URLSearchParams();
-    if (params.per_page) search.set('per_page', String(params.per_page));
-    if (params.category) search.set('category', String(params.category));
-    if (typeof params.featured === 'boolean') search.set('featured', String(params.featured));
-    
-    // Reducir payload - solo campos necesarios
-    search.set('_fields', 'id,name,slug,price,regular_price,sale_price,images,categories,short_description');
-    
-    const qs = search.toString();
-    const revalidate = params.revalidate ?? 300; // 5 minutos por defecto
-    return wcFetch<WcProduct[]>(`/products${qs ? `?${qs}` : ''}`, { revalidate });
-  } catch (error) {
-    console.warn('❌ Error fetching WooCommerce products, usando mock data:', error);
-    return mockWcProducts.slice(0, params.per_page || 8);
-  }
-}
-
-export async function wcFetchProductBySlug(slug: string): Promise<WcProduct | null> {
-  try {
-    // Durante el build o si WooCommerce no está configurado, usar mock data
-    if (!isWcAvailable() || typeof window === 'undefined') {
-      console.warn('🔧 WooCommerce no configurado o build time, buscando producto mock por slug:', slug);
-      return mockWcProducts.find(p => p.slug === slug) || null;
-    }
-
-    const items = await wcFetch<WcProduct[]>(`/products?slug=${encodeURIComponent(slug)}`);
-    return items[0] ?? null;
-  } catch (error) {
-    console.warn('❌ Error fetching product by slug, usando mock data:', error);
-    return mockWcProducts.find(p => p.slug === slug) || null;
-  }
-}
-
-export async function wcFetchCategories(revalidate: number = 300): Promise<WcCategory[]> {
-  try {
-    // Durante el build o si WooCommerce no está configurado, usar mock data
-    if (!isWcAvailable() || typeof window === 'undefined') {
-      console.warn('🔧 WooCommerce no configurado o build time, usando categorías mock');
-      return mockWcCategories;
-    }
-
-    // Reducir payload - solo campos necesarios  
-    return wcFetch<WcCategory[]>(`/products/categories?per_page=100&_fields=id,name,slug,image`, { revalidate });
-  } catch (error) {
-    console.warn('❌ Error fetching WooCommerce categories, usando mock data:', error);
-    return mockWcCategories;
-  }
-}
-
-export function wcFirstImage(p?: WcProduct): string | null {
-  return p?.images?.[0]?.src || null;
-}
-
-export async function wcFetchProductById(id: number | string): Promise<WcProduct | null> {
-  try {
-    // Durante el build o si WooCommerce no está configurado, usar mock data
-    if (!isWcAvailable() || typeof window === 'undefined') {
-      console.warn('🔧 WooCommerce no configurado o build time, buscando producto mock por ID:', id);
-      return mockWcProducts.find(p => p.id === Number(id)) || null;
-    }
-
-    const item = await wcFetch<WcProduct>(`/products/${id}`);
-    return item ?? null;
-  } catch (error) {
-    console.warn('❌ Error fetching product by ID, usando mock data:', error);
-    return mockWcProducts.find(p => p.id === Number(id)) || null;
-  }
-}
-
-export async function wcFindCategoryBySlug(slug: string): Promise<WcCategory | null> {
-  try {
-    // Durante el build o si WooCommerce no está configurado, usar mock data
-    if (!isWcAvailable() || typeof window === 'undefined') {
-      console.warn('🔧 WooCommerce no configurado o build time, buscando categoría mock por slug:', slug);
-      return mockWcCategories.find(c => c.slug === slug) || null;
-    }
-
-    const cats = await wcFetchCategories();
-    return cats.find(c => c.slug === slug) || null;
-  } catch (error) {
-    console.warn('❌ Error finding category by slug, usando mock data:', error);
-    return mockWcCategories.find(c => c.slug === slug) || null;
-  }
-}
-
-// Orders (minimal)
 export type WcOrderCustomer = {
   first_name: string;
   last_name: string;
@@ -247,6 +46,8 @@ export type WcOrder = {
   status: string;
   total: string;
   currency: string;
+  /** Secreto por pedido: habilita consultar el estado sin exponer la orden. */
+  order_key?: string;
   line_items: Array<{ product_id: number; variation_id?: number; quantity: number; total?: string; price?: string }>;
   shipping_lines?: Array<{ method_id: string; method_title: string; total: string }>;
   billing?: Partial<WcOrderCustomer>;
@@ -254,7 +55,184 @@ export type WcOrder = {
   meta_data?: Array<{ key: string; value: any }>;
 };
 
+function missingEnvList(): string[] {
+  const missing: string[] = [];
+  if (!(process.env.WP_JSON_URL || process.env.WC_BASE_URL || process.env.WP_API_URL)) {
+    missing.push('WP_JSON_URL/WC_BASE_URL');
+  }
+  if (!process.env.WC_CONSUMER_KEY) missing.push('WC_CONSUMER_KEY');
+  if (!process.env.WC_CONSUMER_SECRET) missing.push('WC_CONSUMER_SECRET');
+  return missing;
+}
+
+/**
+ * Retorna 'live' cuando la URL base y las claves de WooCommerce están configuradas.
+ * En cualquier otro caso retorna 'mock'.
+ */
+export function getWcMode(): WcMode {
+  return missingEnvList().length === 0 ? 'live' : 'mock';
+}
+
+function warnMock(fnName: string): void {
+  const missing = missingEnvList();
+  console.warn(
+    `[woocommerce] ${fnName}: modo mock activo (faltan variables: ${missing.join(', ')}). Usando datos demo.`
+  );
+}
+
+function getBase(): string {
+  const raw = process.env.WP_JSON_URL || process.env.WC_BASE_URL || process.env.WP_API_URL;
+  if (!raw) {
+    throw new Error('WP_JSON_URL is not set');
+  }
+  const base = raw.replace(/\/$/, '');
+  return base.includes('/wp-json') ? base : `${base}/wp-json`;
+}
+
+function getAuth(): string {
+  const key = process.env.WC_CONSUMER_KEY;
+  const secret = process.env.WC_CONSUMER_SECRET;
+  if (!key || !secret) {
+    throw new Error('WooCommerce keys are missing (WC_CONSUMER_KEY/WC_CONSUMER_SECRET)');
+  }
+  const token = Buffer.from(`${key}:${secret}`).toString('base64');
+  return `Basic ${token}`;
+}
+
+async function wcFetch<T>(path: string, init?: RequestInit & { revalidate?: number }): Promise<T> {
+  const base = getBase();
+  const url = `${base}/wc/v3${path}`;
+  const revalidate = init?.revalidate ?? 60;
+
+  const res = await fetch(url, {
+    headers: {
+      Authorization: getAuth(),
+      'Content-Type': 'application/json',
+      ...(init?.headers || {}),
+    },
+    cache: init?.method && init.method.toUpperCase() !== 'GET' ? 'no-store' : 'force-cache',
+    next: { revalidate },
+    ...init,
+  });
+
+  if (!res.ok) {
+    const errorBody = await res.text().catch(() => '');
+    throw new Error(`WooCommerce API error ${res.status} on ${path}: ${errorBody.slice(0, 200)}`);
+  }
+
+  return (await res.json()) as T;
+}
+
+// En memoria para modo mock: almacena órdenes creadas durante la sesión demo
+const mockOrdersStore = new Map<number, WcOrder>();
+
+export async function wcFetchProducts(
+  params: { per_page?: number; category?: number | string; featured?: boolean; revalidate?: number } = {}
+): Promise<WcProduct[]> {
+  if (getWcMode() === 'mock') {
+    warnMock('wcFetchProducts');
+    let products = [...mockWcProducts];
+
+    if (params.category) {
+      products = products.filter((p) =>
+        p.categories?.some((c) => c.id === params.category || c.slug === params.category)
+      );
+    }
+    if (params.featured) {
+      products = products.slice(-4);
+    }
+    if (params.per_page) {
+      products = products.slice(0, params.per_page);
+    }
+    return products;
+  }
+
+  // Modo live: sin fallback silencioso ante errores
+  const search = new URLSearchParams();
+  if (params.per_page) search.set('per_page', String(params.per_page));
+  if (params.category) search.set('category', String(params.category));
+  if (typeof params.featured === 'boolean') search.set('featured', String(params.featured));
+  search.set('_fields', 'id,name,slug,price,regular_price,sale_price,images,categories,short_description');
+
+  const qs = search.toString();
+  const revalidate = params.revalidate ?? 300;
+  return wcFetch<WcProduct[]>(`/products${qs ? `?${qs}` : ''}`, { revalidate });
+}
+
+export async function wcFetchProductBySlug(slug: string): Promise<WcProduct | null> {
+  if (getWcMode() === 'mock') {
+    warnMock(`wcFetchProductBySlug(${slug})`);
+    return mockWcProducts.find((p) => p.slug === slug) || null;
+  }
+
+  const items = await wcFetch<WcProduct[]>(`/products?slug=${encodeURIComponent(slug)}`);
+  return items[0] ?? null;
+}
+
+export async function wcFetchCategories(revalidate = 300): Promise<WcCategory[]> {
+  if (getWcMode() === 'mock') {
+    warnMock('wcFetchCategories');
+    return mockWcCategories;
+  }
+
+  return wcFetch<WcCategory[]>(`/products/categories?per_page=100&_fields=id,name,slug,image`, { revalidate });
+}
+
+export function wcFirstImage(p?: WcProduct): string | null {
+  return p?.images?.[0]?.src || null;
+}
+
+export async function wcFetchProductById(id: number | string): Promise<WcProduct | null> {
+  if (getWcMode() === 'mock') {
+    warnMock(`wcFetchProductById(${id})`);
+    return mockWcProducts.find((p) => p.id === Number(id)) || null;
+  }
+
+  const item = await wcFetch<WcProduct>(`/products/${id}`);
+  return item ?? null;
+}
+
+export async function wcFindCategoryBySlug(slug: string): Promise<WcCategory | null> {
+  if (getWcMode() === 'mock') {
+    warnMock(`wcFindCategoryBySlug(${slug})`);
+    return mockWcCategories.find((c) => c.slug === slug) || null;
+  }
+
+  const cats = await wcFetchCategories();
+  return cats.find((c) => c.slug === slug) || null;
+}
+
 export async function wcCreateOrder(payload: Partial<WcOrder>): Promise<WcOrder> {
+  if (getWcMode() === 'mock') {
+    warnMock('wcCreateOrder');
+    const id = Date.now();
+    const orderKey = `wc_order_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
+    const lineItemsTotal = (payload.line_items || []).reduce(
+      (sum, li) => sum + Number(li.price || 0) * Number(li.quantity || 1),
+      0
+    );
+    const shippingTotal = (payload.shipping_lines || []).reduce(
+      (sum, sl) => sum + Number(sl.total || 0),
+      0
+    );
+    const total = String(lineItemsTotal + shippingTotal);
+
+    const mockOrder: WcOrder = {
+      id,
+      status: payload.status || 'pending',
+      total,
+      currency: 'UYU',
+      order_key: orderKey,
+      line_items: payload.line_items || [],
+      shipping_lines: payload.shipping_lines || [],
+      billing: payload.billing || {},
+      shipping: payload.shipping || {},
+      meta_data: payload.meta_data || [],
+    };
+    mockOrdersStore.set(id, mockOrder);
+    return mockOrder;
+  }
+
   return wcFetch<WcOrder>(`/orders`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: getAuth() },
@@ -264,6 +242,27 @@ export async function wcCreateOrder(payload: Partial<WcOrder>): Promise<WcOrder>
 }
 
 export async function wcUpdateOrder(id: number | string, payload: Partial<WcOrder>): Promise<WcOrder> {
+  const numericId = Number(id);
+  if (getWcMode() === 'mock') {
+    warnMock(`wcUpdateOrder(${id})`);
+    const existing = mockOrdersStore.get(numericId) || {
+      id: numericId,
+      status: 'pending',
+      total: '0',
+      currency: 'UYU',
+      order_key: `wc_order_mock_${numericId}`,
+      line_items: [],
+    };
+    const updated: WcOrder = {
+      ...existing,
+      ...payload,
+      id: numericId,
+      meta_data: [...(existing.meta_data || []), ...(payload.meta_data || [])],
+    };
+    mockOrdersStore.set(numericId, updated);
+    return updated;
+  }
+
   return wcFetch<WcOrder>(`/orders/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', Authorization: getAuth() },
@@ -273,6 +272,22 @@ export async function wcUpdateOrder(id: number | string, payload: Partial<WcOrde
 }
 
 export async function wcGetOrder(id: number | string): Promise<WcOrder> {
+  const numericId = Number(id);
+  if (getWcMode() === 'mock') {
+    warnMock(`wcGetOrder(${id})`);
+    const found = mockOrdersStore.get(numericId);
+    if (found) return found;
+    // Si no fue creada en esta sesión pero se consulta un ID mock (ej. id: 1)
+    return {
+      id: numericId,
+      status: 'pending',
+      total: '25000',
+      currency: 'UYU',
+      order_key: `wc_order_mock_${numericId}`,
+      line_items: [{ product_id: 1, quantity: 1, total: '25000', price: '25000' }],
+    };
+  }
+
   return wcFetch<WcOrder>(`/orders/${id}`, { cache: 'no-store' });
 }
 

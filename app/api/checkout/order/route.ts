@@ -1,27 +1,73 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { buildCartSummary } from '@/lib/checkout/cart';
+import { getClientIp, rateLimit } from '@/lib/rate-limit';
 import { wcCreateOrder, WcOrder } from '@/lib/woocommerce';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    // Basic validation
-    if (!Array.isArray(body?.items) || !body?.customer) {
-      return NextResponse.json({ ok: false, error: 'Invalid payload' }, { status: 400 });
+    const ip = getClientIp(req);
+    const rl = rateLimit(`order:${ip}`, 10, 60_000);
+    if (!rl.ok) {
+      return NextResponse.json(
+        { ok: false, error: 'Demasiados intentos. Probá de nuevo en un momento.' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rl.retryAfterSeconds) },
+        }
+      );
     }
 
-    const line_items = body.items.map((it: any) => ({
-      product_id: Number(it.product_id),
-      variation_id: it.variation_id ? Number(it.variation_id) : undefined,
-      quantity: Math.max(1, Number(it.quantity || 1)),
+    const body = await req.json();
+
+    if (!Array.isArray(body?.items) || body.items.length === 0 || !body?.customer) {
+      return NextResponse.json({ ok: false, error: 'Payload inválido' }, { status: 400 });
+    }
+
+    if (body.items.length > 50) {
+      return NextResponse.json(
+        { ok: false, error: 'El pedido supera el máximo permitido de 50 productos distintos' },
+        { status: 400 }
+      );
+    }
+
+    // El servidor calcula el resumen autoritativo (precios, envío y totales de WooCommerce)
+    // El cliente NUNCA decide los montos ni el costo de envío.
+    const summary = await buildCartSummary(body.items);
+
+    if (summary.items.length === 0) {
+      return NextResponse.json(
+        { ok: false, error: 'No hay productos válidos en el pedido', missing: summary.missing },
+        { status: 400 }
+      );
+    }
+
+    if (summary.missing.length > 0) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'Algunos productos del carrito no están disponibles o tienen datos inválidos',
+          missing: summary.missing,
+        },
+        { status: 400 }
+      );
+    }
+
+    const line_items = summary.items.map((it) => ({
+      product_id: it.id,
+      quantity: it.quantity,
+      price: String(it.price),
+      total: String(it.lineTotal),
     }));
 
-    const shipping_lines = body.shippingLine ? [{
-      method_id: String(body.shippingLine.method_id),
-      method_title: String(body.shippingLine.method_title || body.shippingLine.method_id),
-      total: String(body.shippingLine.total ?? 0),
-    }] : [];
+    const shipping_lines = [
+      {
+        method_id: summary.shipping.method_id,
+        method_title: summary.shipping.method_title,
+        total: String(summary.shipping.total),
+      },
+    ];
 
     const billing = body.customer?.billing ?? {
       first_name: body.customer.first_name,
@@ -49,7 +95,7 @@ export async function POST(req: NextRequest) {
       phone: body.customer.phone,
     };
 
-  const meta_data = Object.entries(body.meta ?? {}).map(([key, value]) => ({ key, value }));
+    const meta_data = Object.entries(body.meta ?? {}).map(([key, value]) => ({ key, value }));
 
     const payload: Partial<WcOrder> = {
       status: 'pending',
@@ -60,9 +106,14 @@ export async function POST(req: NextRequest) {
       meta_data,
     };
 
-  const order = await wcCreateOrder(payload);
+    const order = await wcCreateOrder(payload);
 
-  return NextResponse.json({ ok: true, order_id: order.id, status: order.status });
+    return NextResponse.json({
+      ok: true,
+      order_id: order.id,
+      order_key: order.order_key,
+      status: order.status,
+    });
   } catch (err: any) {
     console.error('checkout/order POST error', err);
     return NextResponse.json({ ok: false, error: 'Server error' }, { status: 500 });

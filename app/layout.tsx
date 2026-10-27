@@ -7,6 +7,7 @@ import { CartProvider } from "../components/CartContext";
 import CartHost from "../components/CartHost";
 import MotionProvider from "../components/motion/MotionProvider";
 import TopLoader from "../components/ui/TopLoader";
+import DemoCatalogBanner from "../components/ui/DemoCatalogBanner";
 import Script from "next/script";
 
 const manrope = Manrope({ subsets: ["latin"], variable: "--font-sans" });
@@ -66,6 +67,7 @@ export default function RootLayout({
           <TopLoader />
           <FavoritosProvider>
             <CartProvider>
+              <DemoCatalogBanner />
               <Header />
               {children}
               <CartHost />

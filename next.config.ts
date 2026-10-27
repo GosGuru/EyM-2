@@ -1,10 +1,60 @@
+import type { NextConfig } from 'next';
 
+// Content-Security-Policy
+// Nota: 'unsafe-inline' en script-src y style-src es una concesión temporal
+// requerida por la hidratación de Next.js y Tailwind v4 en modo sin nonce.
+// A futuro se migra a CSP basada en nonces vía middleware.
+const ContentSecurityPolicy = `
+  default-src 'self';
+  img-src 'self' data: blob: https:;
+  script-src 'self' 'unsafe-inline' https://sdk.mercadopago.com;
+  style-src 'self' 'unsafe-inline';
+  font-src 'self' data:;
+  frame-src 'self' https://www.mercadopago.com https://www.mercadopago.com.ar https://www.mercadopago.com.uy;
+  connect-src 'self' https://api.mercadopago.com;
+  object-src 'none';
+  base-uri 'self';
+  form-action 'self';
+`
+  .replace(/\s{2,}/g, ' ')
+  .trim();
 
-import type { NextConfig } from "next";
+const securityHeaders = [
+  {
+    key: 'Strict-Transport-Security',
+    value: 'max-age=63072000; includeSubDomains; preload',
+  },
+  {
+    key: 'X-Content-Type-Options',
+    value: 'nosniff',
+  },
+  {
+    key: 'Referrer-Policy',
+    value: 'strict-origin-when-cross-origin',
+  },
+  {
+    key: 'X-Frame-Options',
+    value: 'DENY',
+  },
+  {
+    key: 'Permissions-Policy',
+    value: 'camera=(), microphone=(), geolocation=()',
+  },
+  {
+    key: 'Content-Security-Policy',
+    value: ContentSecurityPolicy,
+  },
+];
 
 const nextConfig: NextConfig = {
-  // Usar directorio por defecto para evitar problemas con OneDrive
-  // distDir: "node_modules/.cache/next", // Comentado para evitar problemas de permisos
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: securityHeaders,
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       // Local WordPress (development)
@@ -42,12 +92,6 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: 'via.placeholder.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'ewchbggpobgpotzicnln.supabase.co',
         port: '',
         pathname: '/**',
       },

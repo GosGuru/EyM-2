@@ -1,14 +1,11 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
-import supabase from "@/lib/supabase";
 import Link from "next/link";
 import Image from "next/image";
 import CartDrawer from "./CartDrawer";
 import SearchIcon from "./ui/SearchIcon";
 import { useFavoritos } from "./FavoritosContext";
 import { useCart } from "./CartContext";
-
-// Cliente Supabase centralizado desde lib/supabase
 
 interface NavLink {
   name: string;
@@ -38,22 +35,7 @@ export default function Header() {
   const navRef = useRef<HTMLDivElement>(null);
   const [isFixed, setIsFixed] = useState(false);
   const [navHeight, setNavHeight] = useState(0);
-  const [adminUser, setAdminUser] = useState<any>(null);
   const { totalItems, setOpen: setCartDrawerOpen } = useCart();
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setAdminUser(data.user);
-    });
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setAdminUser(session?.user ?? null);
-      }
-    );
-    return () => {
-      listener?.subscription.unsubscribe();
-    };
-  }, []);
 
   // Cierra el menú con animación de salida
   const closeMobileMenu = () => {
@@ -152,15 +134,6 @@ export default function Header() {
           </ul>
           {/* Iconos de utilidad */}
           <div className="flex items-center gap-3 text-lg">
-            {/* Admin dashboard link (solo si logueado) */}
-            {adminUser && (
-              <Link
-                href="/admin"
-                className="text-eym-dark hover:text-white font-bold text-sm px-2 py-1 rounded border border-eym-accent-orange bg-eym-accent-orange hover:bg-eym-accent-orange/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-eym-accent-orange/70 transition-colors duration-200"
-              >
-                Admin
-              </Link>
-            )}
             {/* Buscar */}
             <div className="group relative inline-flex h-9 w-9 items-center justify-center rounded-full text-eym-dark hover:text-eym-accent-orange hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-eym-accent-orange/70 transition-colors">
               <SearchIcon size={20} className="text-current" showModal={true} />

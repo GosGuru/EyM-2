@@ -142,12 +142,12 @@ function CheckoutForm() {
 
   // Validación en línea
   const validateField = (name: string, value: string): string | undefined => {
-    try {
-      CheckoutSchema.pick({ [name]: true } as any).parse({ [name]: value });
-      return undefined;
-    } catch (err: any) {
-      return err.errors?.[0]?.message || 'Campo inválido';
+    const res = CheckoutSchema.safeParse({ [name]: value });
+    if (!res.success) {
+      const issue = res.error.issues.find(i => i.path[0] === name);
+      return issue?.message;
     }
+    return undefined;
   };
 
   // Enviar formulario
@@ -224,13 +224,12 @@ function CheckoutForm() {
         throw new Error(orderData.error || 'No se pudo crear el pedido');
       }
 
-      // Procesar pago
+      // Procesar pago: el monto lo calcula el servidor desde WooCommerce, no el cliente.
       const paymentRes = await fetch('/api/checkout/payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           order_id: orderData.order_id, 
-          totals: { grandTotal }, 
           payer: { 
             email: customer.email, 
             name: customer.first_name, 
@@ -246,6 +245,7 @@ function CheckoutForm() {
 
       // Guardar datos de la orden
       sessionStorage.setItem('last_order_id', String(orderData.order_id));
+      sessionStorage.setItem('last_order_key', String(orderData.order_key || ''));
       sessionStorage.setItem('last_grand_total', String(grandTotal));
       sessionStorage.setItem('last_email', customer.email);
       

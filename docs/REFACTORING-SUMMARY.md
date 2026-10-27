@@ -137,7 +137,7 @@ const { prefetchOnHover } = usePrefetchRoute("/favoritos");
 
 ### 1. **Desarrollo**
 ```bash
-npm run dev
+bun run dev
 # ➡️ http://localhost:3001
 ```
 

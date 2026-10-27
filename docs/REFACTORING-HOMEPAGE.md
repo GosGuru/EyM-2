@@ -107,19 +107,19 @@ const { prefetchOnHover } = usePrefetchRoute("/favoritos");
 
 ### 1. Desarrollo
 ```bash
-npm run dev
+bun run dev
 ```
 
 ### 2. Producción
 ```bash
-npm run build
-npm start
+bun run build
+bun run start
 ```
 
 ### 3. Lighthouse
 ```bash
 # Instalar lighthouse
-npm install -g @lhci/cli
+bun install -g @lhci/cli
 
 # Correr audit
 lhci autorun --collect.url=http://localhost:3000
@@ -185,14 +185,14 @@ app/
 
 ```bash
 # Verificar tipos
-npm run type-check
+bun run type-check
 
 # Lint
-npm run lint
+bun run lint
 
 # Build
-npm run build
+bun run build
 
 # Lighthouse CI
-npx lighthouse http://localhost:3000 --output html --output-path ./lighthouse-report.html
+bunx lighthouse http://localhost:3000 --output html --output-path ./lighthouse-report.html
 ```

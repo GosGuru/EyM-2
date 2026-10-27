@@ -59,3 +59,13 @@ export const adaptProduct = (p:any) => ({
   price: String(p.price ?? p.regular_price ?? ''),
   image: p.images?.[0]?.src || undefined
 });
+
+---
+
+## 9) Gestor de paquetes: Bun (obligatorio)
+- **Único gestor permitido: `bun`.** No usar `npm`, `npx`, `pnpm` ni `yarn` en ningún comando, script o documentación.
+- Instalar: `bun install`. Agregar: `bun add <pkg>` / `bun add -d <pkg>`. Ejecutar: `bun run <script>`.
+- El lockfile versionado es `bun.lock`. No commitear `package-lock.json`, `pnpm-lock.yaml` ni `yarn.lock`; si aparecen, eliminarlos.
+- `package.json` declara `"packageManager": "bun@<versión>"`; mantenerlo sincronizado con la versión local.
+- Los scripts deben ser cross-platform (nada de PowerShell ni rutas de Windows).
+- Next.js sigue ejecutándose sobre Node; Bun es el gestor y el runner de scripts.

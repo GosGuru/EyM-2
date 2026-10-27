@@ -2,12 +2,19 @@
   "name": "eym-indumentaria-web",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "bun@1.4.4",
+  "trustedDependencies": [
+    "@tailwindcss/oxide",
+    "sharp"
+  ],
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "clean": "powershell -NoProfile -Command \"if (Test-Path .next) { Remove-Item -Recurse -Force .next }; if (Test-Path 'node_modules/.cache/next') { Remove-Item -Recurse -Force 'node_modules/.cache/next' }\""
+    "type-check": "tsc --noEmit",
+    "test": "bun test",
+    "clean": "rm -rf .next node_modules/.cache/next"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.4",

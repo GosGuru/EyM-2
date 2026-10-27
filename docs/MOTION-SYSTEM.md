@@ -226,7 +226,7 @@ MOTION_TOKENS = {
 
 ```bash
 # Verificar bundle de Framer Motion
-npm run build && npm run analyze
+bun run build
 
 # Lighthouse en modo incógnito
 lighthouse http://localhost:3000 --view

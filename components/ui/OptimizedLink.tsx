@@ -40,11 +40,6 @@ export default function OptimizedLink({
       window.dispatchEvent(new CustomEvent('navigation:start'));
       
       navigateWithTransition(href);
-      
-      // Finalizar loading después de un delay corto
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('navigation:end'));
-      }, 300);
     }
     // Si no, Link de Next.js maneja la navegación
   };

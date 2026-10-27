@@ -7,6 +7,16 @@ import AddToCartButton from "../../../components/AddToCartButton";
 import { SkeletonProductos } from "../../../components/skeletons/Skeleton";
 
 export const revalidate = 300; // 5 minutos
+export const dynamic = "force-static";
+export const dynamicParams = true;
+
+export async function generateStaticParams() {
+  const { wcFetchCategories } = await import("../../../lib/woocommerce");
+  const categorias = await wcFetchCategories();
+  return categorias.map((cat) => ({
+    categoria: cat.slug,
+  }));
+}
 
 interface Params {
   categoria: string;

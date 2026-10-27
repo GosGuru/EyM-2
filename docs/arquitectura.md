@@ -1,57 +1,62 @@
 # Arquitectura del Sistema
 
-## 1. Visión General: Enfoque Headless
+## 1. Visión General: Arquitectura Integrada a Costo $0
 
-El proyecto implementa una arquitectura desacoplada (**Headless Commerce**):
+El proyecto implementa una arquitectura unificada sobre **Next.js 15 (App Router)** sin costos fijos de servidores:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                       USUARIO / BROWSER                     │
+│                       USUARIO / ENZO (BROWSER)              │
 └──────────────────────────────┬──────────────────────────────┘
                                │ HTTPS
                                ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    STOREFRONT (Next.js 15)                  │
+│                    APLICACIÓN NEXT.JS 15                    │
 │                                                             │
-│   • App Router (RSC + Client Components)                    │
-│   • Tailwind CSS v4 + Framer Motion                         │
-│   • Runtime: Bun (gestor) sobre Node.js 20+ (servidor)      │
-│   • Edge/Node API Route Handlers:                           │
-│       - /api/checkout/summary (resumen con cache)           │
-│       - /api/checkout/order   (creación de orden WC)        │
-│       - /api/checkout/payment (preferencia MP)              │
-│       - /api/webhooks/mercadopago (notificaciones HMAC)     │
+│   • STOREFRONT:                                             │
+│       - Catálogo, Tienda, Detalle de Producto, Carrito      │
+│       - Tailwind CSS v4 + Framer Motion (RSC + Streaming)   │
+│   • PANEL /ADMIN INTEGRADO:                                 │
+│       - Gestión de productos, talles, variantes y fotos     │
+│       - Panel de control de órdenes y despachos para Enzo   │
+│   • API & SERVER ACTIONS:                                   │
+│       - /api/checkout/summary (resumen y cálculo de envío)  │
+│       - /api/checkout/order   (creación segura de orden)    │
+│       - /api/checkout/payment (preferencia Mercado Pago)    │
+│       - /api/webhooks/mercadopago (validación HMAC)         │
 │       - /api/orders/[id]      (consulta con order_key)      │
-│       - /api/health           (diagnóstico de backend)      │
+│       - /api/health           (diagnóstico de conectividad) │
 └──────────────┬───────────────────────────────┬──────────────┘
-               │ Basic Auth (server-only)      │ OAuth Bearer (server-only)
+               │ Query directa (<10ms)         │ OAuth Bearer (server-only)
                ▼                               ▼
 ┌──────────────────────────────┐ ┌────────────────────────────┐
-│      BACKEND / CMS           │ │     PASARELA DE PAGO       │
-│  WordPress + WooCommerce     │ │       Mercado Pago         │
+│   POSTGRESQL SERVERLESS      │ │     PASARELA DE PAGO       │
+│  (Neon / Supabase Free Tier) │ │       Mercado Pago         │
 │                              │ │                            │
-│  • Catálogo de productos     │ │  • Checkout Pro            │
-│  • Gestión de inventario     │ │  • Medios de pago locales  │
-│  • Registro de órdenes       │ │  • Webhook con firma HMAC  │
-│  • Blog de contenidos        │ │                            │
+│  • Productos, variantes      │ │  • Checkout Pro            │
+│  • Categorías                │ │  • Tarjetas / Abitab / Red │
+│  • Órdenes y transacciones   │ │  • Webhook con firma HMAC  │
+│  • Costo: $0 USD / mes       │ │                            │
 └──────────────────────────────┘ └────────────────────────────┘
 ```
 
 ---
 
-## 2. Decisión Arquitectónica: Por qué WooCommerce como Único Backend
+## 2. Decisión Arquitectónica y Evolución del Backend
 
-Al inicio el proyecto contenía dos mitades desconectadas:
-- Un panel `/admin` con autenticación y tablas en Supabase.
-- Un storefront público que consultaba WooCommerce y caía silenciosamente a datos mock.
+### Etapa 1: Esquema híbrido inicial (Deprecado)
+Al inicio el proyecto contenía dos mitades desconectadas: un panel `/admin` con autenticación en Supabase y un storefront que caía silenciosamente a datos mock intentando hablar con WooCommerce.
 
-### Problemas del esquema híbrido:
-1. **Doble mantenimiento**: Cada producto requería ser cargado dos veces o construir un motor de sincronización bidireccional (propenso a pérdidas de stock y desfasajes de precio).
-2. **Superficie de ataque innecesaria**: Mantener un login administrativo propio con auth client-side, reglas RLS incompletas y endpoints de manipulación de tablas expuestas.
-3. **Reinventar la rueda**: WooCommerce ya resuelve variantes, talles, colores, galerías de imágenes, cupones de descuento, estados de orden y stock transaccional.
+### Etapa 2: Evaluación de WooCommerce Headless (Descartado por Costo $0)
+Se evaluó unificar todo sobre WordPress + WooCommerce en hosting externo (ej. Hostinger).
+- **Motivo de descarte:** Requiere costos fijos mensuales recurrentes de hosting PHP/MySQL y mantenimiento de servidores. La premisa estratégica del proyecto (emprendimiento aliado) es **costo fijo $0/mes** de infraestructura. Además, la REST API de WordPress en hosting compartido agrega cuellos de botella de latencia (500ms - 2000ms) innecesarios.
 
-### Resolución (2026-10-26):
-Se eliminó por completo la dependencia de Supabase y el panel `/admin`. **WordPress + WooCommerce es el único CMS y backend del negocio.**
+### Etapa 3: Decisión Definitiva — Panel CMS Integrado en Next.js (Costo $0)
+Se adopta la arquitectura **Next.js All-in-One con CMS integrado**:
+1. **Infraestructura unificada ($0/mes):** El storefront y el panel administrativo `/admin` corren dentro del mismo proyecto desplegado en Vercel, respaldado por una base de datos PostgreSQL serverless gratuita (ej. Supabase o Neon).
+2. **Latencia < 10ms:** Las consultas de catálogo se ejecutan directamente en Server Components y Server Actions sobre la base de datos sin saltos de red HTTP hacia servidores PHP externos.
+3. **Panel Administrativo Simplificado:** Panel en español optimizado para indumentaria (gestión de catálogo, talles, variantes, fotos y estado de pedidos).
+4. **Checkout y Pagos Seguros Preservados:** Toda la suite de seguridad desarrollada (validación de firma HMAC de Mercado Pago, cálculo autoritativo de subtotales y envíos en servidor, proyección pública de pedidos sin PII) se preserva intacta.
 
 ---
 
@@ -67,12 +72,12 @@ Se eliminó por completo la dependencia de Supabase y el panel `/admin`. **WordP
 [3. Formulario de Envío]
         │
         ▼ (POST /api/checkout/order con items + datos del cliente)
-[4. Server crea Orden en Woo] ──► Recalcula subtotales y envío
-        │                     ──► Crea orden en estado 'pending'
-        │                     ──► Obtiene `id` y `order_key`
+[4. Server crea Orden en DB] ──► Recalcula subtotales y envío en servidor
+        │                     ──► Inserta orden en estado 'pending'
+        │                     ──► Genera `order_key` criptográfico
         ▼
 [5. Iniciar Pago] ────────────► POST /api/checkout/payment {order_id}
-        │                     ──► Consulta orden a Woo: total autoritativo
+        │                     ──► Lee orden de DB: total autoritativo
         │                     ──► Crea preferencia MP con back_urls (?order_id=X&key=Y)
         ▼
 [6. Redirect a Mercado Pago]
@@ -81,7 +86,7 @@ Se eliminó por completo la dependencia de Supabase y el panel `/admin`. **WordP
         │                           │
         │                           ├── Valida firma HMAC (x-signature)
         │                           ├── Valida monto pagado == orden.total
-        │                           └── Actualiza orden Woo a 'processing'
+        │                           └── Actualiza orden en DB a 'processing'
         │
         └─► Redirect comprador a /checkout/exito?order_id=X&key=Y
                 │

@@ -1,127 +1,66 @@
-# Guía de Aprovisionamiento del Backend WooCommerce
+# Guía de Aprovisionamiento del Backend ($0 USD/mes)
 
-Esta guía responde a la situación identificada en el proyecto: **actualmente no hay un catálogo cargado, no hay dominio propio asignado y se debe recuperar o definir dónde alojar la instancia de WordPress + WooCommerce**.
-
----
-
-## 1. Diagnóstico del Estado Actual
-
-En el código fuente original (`next.config.ts`), el proyecto tenía configurado el siguiente dominio temporal de Hostinger:
-```
-https://slategray-wallaby-716305.hostingersite.com
-```
-Este subdominio es el formato típico que asigna **Hostinger** a sitios de prueba (`hostingersite.com`) antes de vincular un dominio personalizado.
+Esta guía detalla cómo montar y operar la infraestructura completa de **EYM Indumentaria** cumpliendo la restricción estricta definida para el proyecto: **costo fijo $0 USD / mes**, sin cuotas mensuales de hosting ni servidores dedicados.
 
 ---
 
-## 2. Paso a Paso: Recuperación de la Cuenta Existente en Hostinger
+## 1. Decisión de Infraestructura: Pila Serverless Gratuita
 
-Si sospechás que tenés o tuviste una cuenta en Hostinger, realizá los siguientes pasos antes de contratar un servicio nuevo:
+Para que Enzo opere su negocio de indumentaria sin gastos fijos antes de vender, la infraestructura se compone de servicios con planes gratuitos generosos y permanentes:
 
-1. **Prueba de Recuperación de Correo**:
-   - Ingresá a [https://hpanel.hostinger.com/](https://hpanel.hostinger.com/).
-   - Hacé clic en *"¿Olvidaste tu contraseña?"* y probá con tus correos electrónicos personales o de trabajo.
-   - Revisá en tu bandeja de entrada (y spam) buscando correos con el remitente `@hostinger.com` o menciones a *"slategray-wallaby"*.
-2. **Acceso directo por proveedor OAuth**:
-   - Probá iniciar sesión con *"Continuar con Google"* usando tus cuentas de Google personales.
-3. **Verificación de Facturación**:
-   - Revisá resúmenes de tarjetas de crédito o estados de cuenta de los últimos 12 meses buscando cargos a nombre de `HOSTINGER` o `Hostinger International`.
-
----
-
-## 3. Evaluación de Opciones para Alojar el Backend
-
-Si la cuenta anterior expiró o decidís comenzar desde cero, evaluá estas 3 alternativas:
-
-| Criterio | Opción A: Hostinger (WordPress Administrado) | Opción B: Cloudways (DigitalOcean / Vultr) | Opción C: LocalWP (Desarrollo Local Gratuito) |
+| Componente | Proveedor Seleccionado | Nivel Gratuito (Free Tier) | Costo Mensual |
 |---|---|---|---|
-| **Costo mensual** | ~$3 a $7 USD / mes | ~$14 a $26 USD / mes | **$0 USD (Gratis)** |
-| **Facilidad de uso** | Muy alta (hPanel, instalador de WP en 1 clic) | Media (orientado a desarrolladores) | Muy alta (aplicación de escritorio) |
-| **Rendimiento REST API** | Aceptable para catálogos chicos (< 500 visitas/día) | Excelente (servidor dedicado, Redis, NGINX) | Depende de tu máquina local |
-| **Copias de seguridad** | Diarias o semanales automáticas | Automáticas por hora/día | Manuales (copia de archivos) |
-| **Recomendado para** | **Lanzamiento inicial con bajo presupuesto** | **Escala de ventas y tráfico continuo** | **Cargar productos y probar antes de pagar hosting** |
-
-### Recomendación Operativa:
-- **Paso Inmediato**: Si querés armar el catálogo hoy sin gastar dinero, descargá [LocalWP](https://localwp.com/), instalá WordPress en tu computadora en 2 minutos, activá WooCommerce y conectá el frontend con `WP_JSON_URL=http://localhost:8882/wp-json`.
-- **Paso a Producción**: Cuando el catálogo esté listo para vender en Uruguay, contratá el plan *Business WordPress* de Hostinger o un droplet en Cloudways, vinculá tu dominio (ej: `admin.eym.uy` o `api.eym.uy`) y subí la base de datos.
+| **Frontend & API** | [Vercel](https://vercel.com/) | 100 GB ancho de banda, despliegues ilimitados, SSL automático | **$0 USD** |
+| **Base de Datos** | [Neon](https://neon.tech/) o [Supabase](https://supabase.com/) | PostgreSQL 500 MB de datos, pooling de conexiones, backups | **$0 USD** |
+| **Storage de Imágenes** | [Cloudinary](https://cloudinary.com/) o [Supabase Storage](https://supabase.com/) | 1 GB - 25 GB de fotos de productos con CDN global | **$0 USD** |
+| **Pasarela de Pagos** | [Mercado Pago Uruguay](https://www.mercadopago.com.uy/) | Sin costo fijo; comisión estándar solo por venta cobrada | **$0 USD fijo** |
 
 ---
 
-## 4. Configuración Obligatoria de WooCommerce para Modo Headless
+## 2. Paso a Paso: Alta de la Base de Datos PostgreSQL ($0)
 
-Una vez que tengas WordPress instalado, realizá exactamente estas configuraciones:
-
-### 4.1. Enlaces Permanentes (Permalinks) — CRÍTICO
-- Menú: **Ajustes > Enlaces permanentes**.
-- Seleccionar: **Nombre de la entrada** (`/%postname%/`).
-- Guardar cambios.
-- *Por qué*: Si los enlaces están en modo "Simple" (`?p=123`), la REST API de WooCommerce `/wp-json/wc/v3` devolverá error 404 en todas las consultas.
-
-### 4.2. Moneda y Ubicación
-- Menú: **WooCommerce > Ajustes > General**.
-- País: **Uruguay**.
-- Moneda: **Pesos uruguayos ($)** (`UYU`).
-- Posición de la moneda: Izquierda con espacio.
-
-### 4.3. Generación de Claves REST API
-- Menú: **WooCommerce > Ajustes > Avanzado > REST API**.
-- Hacé clic en **Añadir clave**.
-  - Descripción: `EYM Next.js Storefront`.
-  - Usuario: Seleccionar usuario administrador.
-  - Permisos: **Lectura/Escritura** (requerido para consultar catálogo y registrar pedidos).
-- Copiar y guardar de inmediato en lugar seguro:
-  - **Clave de cliente (Consumer Key)**: comienza con `ck_...`
-  - **Secreto de cliente (Consumer Secret)**: comienza con `cs_...`
-- *Nota*: El secreto no se vuelve a mostrar una vez cerrada la ventana.
-
-### 4.4. Reglas de Envío Básicas
-- Menú: **WooCommerce > Ajustes > Envío**.
-- Crear una Zona de Envío: **Uruguay (Todo el país)**.
-- Añadir método:
-  - **Precio fijo**: $180 UYU (nombre: "Envío estándar a todo el país").
-  - **Envío gratuito**: Requiere "Una cantidad mínima de pedido" de $2.000 UYU.
-*(Estas reglas quedan alineadas con `lib/shipping/rules.ts` en el frontend).*
+### Opción Recomendada: Neon.tech (PostgreSQL Serverless)
+1. Ingresá a [https://neon.tech/](https://neon.tech/) y creá una cuenta gratuita con GitHub o Google.
+2. Hacé clic en **"Create Project"**:
+   - Nombre: `eym-indumentaria`
+   - Región: `us-east-1` (Norte de Virginia) o `us-east-2` (baja latencia hacia Vercel).
+3. Copiá la cadena de conexión (Connection String) que te provee el panel:
+   ```bash
+   DATABASE_URL="postgresql://user:password@ep-xxxx.us-east-2.aws.neon.tech/neondb?sslmode=require"
+   ```
+4. Guardala en tu archivo `.env.local` en el frontend.
 
 ---
 
-## 5. Vinculación con el Frontend
+## 3. Storage de Imágenes de Productos
 
-Creá el archivo `.env.local` en la raíz de `EyM-2`:
+Las prendas de indumentaria requieren fotos de alta calidad (frente, dorso, detalle de tela y modelo).
 
-```bash
-# URL de la API de WooCommerce (sin barra final)
-WP_JSON_URL=https://tu-sitio.com/wp-json
-WC_CONSUMER_KEY=ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-WC_CONSUMER_SECRET=cs_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+1. Creá una cuenta gratuita en [Cloudinary](https://cloudinary.com/).
+2. Obtené las credenciales de subida directa (`CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_UPLOAD_PRESET`).
+3. El panel `/admin` sube las fotos directamente al CDN gratuito de Cloudinary y almacena únicamente la URL optimizada en la base de datos de productos.
 
-# URL pública del frontend (para callbacks de retorno de pago)
-NEXT_PUBLIC_SITE_URL=http://localhost:3000
+---
 
-# Mercado Pago Uruguay
-MP_ACCESS_TOKEN=APP_USR-xxxxxxxxxxxxxxx-xxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-xxxxxxxxx
-MP_WEBHOOK_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
+## 4. Despliegue en Vercel a Costo $0
 
-Una vez configurado, ejecutá:
-```bash
-curl -s http://localhost:3000/api/health
-```
-Debe responder:
-```json
-{
-  "ok": true,
-  "mode": "live",
-  "checks": {
-    "config": {
-      "baseUrl": true,
-      "consumerKey": true,
-      "consumerSecret": true,
-      "mercadopagoToken": true,
-      "webhookSecret": true
-    },
-    "woocommerceReachable": true,
-    "latencyMs": 240
-  }
-}
-```
-En ese momento, el banner de demostración desaparecerá automáticamente y el storefront comenzará a mostrar los productos reales del backend.
+1. Conectá el repositorio GitHub del proyecto a [Vercel](https://vercel.com/).
+2. Configurá las variables de entorno en **Settings > Environment Variables**:
+   - `DATABASE_URL`: Cadena de conexión de PostgreSQL.
+   - `NEXT_PUBLIC_SITE_URL`: URL pública asignada por Vercel (ej: `https://eym-indumentaria.vercel.app` o tu dominio `.uy`).
+   - `MP_ACCESS_TOKEN`: Credencial de producción de Mercado Pago Uruguay.
+   - `MP_WEBHOOK_SECRET`: Clave secreta para validación de firmas HMAC.
+3. El comando de build en Vercel es:
+   ```bash
+   bun run build
+   ```
+   *(Vercel soporta Bun nativamente a través de su build runtime).*
+
+---
+
+## 5. Por qué se Descartó WordPress / Hostinger
+
+- **Costo económico**: Hostinger o VPS requieren entre $3 y $20 USD mensuales fijos, se venda o no.
+- **Rendimiento deficiente**: Correr WordPress en servidores compartidos baratos genera demoras de 1 a 2 segundos por consulta a la REST API, perjudicando el posicionamiento SEO y la conversión mobile.
+- **Mantenimiento**: Exige actualizar plugins de PHP, parches de seguridad de WordPress y gestionar caídas de servidor.
+- **Experiencia de Enzo**: El panel integrado en Next.js le ofrece una interfaz diseñada a medida en español, limpia, rápida y accesible desde su teléfono.

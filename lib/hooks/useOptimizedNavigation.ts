@@ -35,30 +35,9 @@ export function useOptimizedNavigation() {
 }
 
 /**
- * Hook para prefetch automático cuando elementos entran en viewport
+ * Hook para prefetch automático cuando elementos entran en viewport.
+ * Next.js Link ya gestiona el prefetch de viewport nativamente.
  */
-export function usePrefetchOnViewport(href: string, enabled: boolean = true) {
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!enabled || typeof window === 'undefined') return;
-
-    // Prefetch lazy cuando el elemento entra en viewport
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            router.prefetch(href);
-            observer.disconnect(); // Solo hacer prefetch una vez
-          }
-        });
-      },
-      { 
-        rootMargin: '100px', // Prefetch antes de que sea visible
-        threshold: 0.1 
-      }
-    );
-
-    return () => observer.disconnect();
-  }, [href, enabled, router]);
+export function usePrefetchOnViewport(_href: string, _enabled: boolean = true) {
+  // No-op: Next.js <Link> realiza prefetch nativo sin sobrecargar observers.
 }

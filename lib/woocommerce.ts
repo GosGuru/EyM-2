@@ -5,6 +5,14 @@
 // - WC_CONSUMER_SECRET
 
 import { mockWcCategories, mockWcProducts } from './mockData.js';
+import {
+  fetchCatalogProducts,
+  fetchCatalogProductBySlug,
+  fetchCatalogCategories,
+  createCatalogOrder,
+  getCatalogOrder,
+  updateCatalogOrderStatus,
+} from './supabase/catalog';
 
 export type WcMode = 'live' | 'mock';
 
@@ -130,6 +138,9 @@ export async function wcFetchProducts(
   params: { per_page?: number; category?: number | string; featured?: boolean; revalidate?: number } = {}
 ): Promise<WcProduct[]> {
   if (getWcMode() === 'mock') {
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      return fetchCatalogProducts(params);
+    }
     warnMock('wcFetchProducts');
     let products = [...mockWcProducts];
 
@@ -161,6 +172,9 @@ export async function wcFetchProducts(
 
 export async function wcFetchProductBySlug(slug: string): Promise<WcProduct | null> {
   if (getWcMode() === 'mock') {
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      return fetchCatalogProductBySlug(slug);
+    }
     warnMock(`wcFetchProductBySlug(${slug})`);
     return mockWcProducts.find((p) => p.slug === slug) || null;
   }
@@ -171,6 +185,9 @@ export async function wcFetchProductBySlug(slug: string): Promise<WcProduct | nu
 
 export async function wcFetchCategories(revalidate = 300): Promise<WcCategory[]> {
   if (getWcMode() === 'mock') {
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      return fetchCatalogCategories();
+    }
     warnMock('wcFetchCategories');
     return mockWcCategories;
   }
@@ -204,6 +221,9 @@ export async function wcFindCategoryBySlug(slug: string): Promise<WcCategory | n
 
 export async function wcCreateOrder(payload: Partial<WcOrder>): Promise<WcOrder> {
   if (getWcMode() === 'mock') {
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      return createCatalogOrder(payload);
+    }
     warnMock('wcCreateOrder');
     const id = Date.now();
     const orderKey = `wc_order_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
@@ -244,6 +264,9 @@ export async function wcCreateOrder(payload: Partial<WcOrder>): Promise<WcOrder>
 export async function wcUpdateOrder(id: number | string, payload: Partial<WcOrder>): Promise<WcOrder> {
   const numericId = Number(id);
   if (getWcMode() === 'mock') {
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      await updateCatalogOrderStatus(id, payload.status || 'processing', payload.meta_data);
+    }
     warnMock(`wcUpdateOrder(${id})`);
     const existing = mockOrdersStore.get(numericId) || {
       id: numericId,
@@ -274,6 +297,10 @@ export async function wcUpdateOrder(id: number | string, payload: Partial<WcOrde
 export async function wcGetOrder(id: number | string): Promise<WcOrder> {
   const numericId = Number(id);
   if (getWcMode() === 'mock') {
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      const dbOrder = await getCatalogOrder(id);
+      if (dbOrder) return dbOrder;
+    }
     warnMock(`wcGetOrder(${id})`);
     const found = mockOrdersStore.get(numericId);
     if (found) return found;

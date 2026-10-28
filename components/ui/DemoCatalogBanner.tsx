@@ -1,7 +1,8 @@
 import { getWcMode } from '@/lib/woocommerce';
 
 export default function DemoCatalogBanner() {
-  if (getWcMode() !== 'mock') {
+  // Si Supabase o WooCommerce están conectados, no se muestra el banner de demo
+  if (Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) || getWcMode() !== 'mock') {
     return null;
   }
 

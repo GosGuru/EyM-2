@@ -4,10 +4,25 @@ import Link from "next/link";
 import AdminProductList from "./AdminProductList";
 import AdminOrderList from "./AdminOrderList";
 import NewProductForm from "./NewProductForm";
+import { getAdminSession } from "../../lib/supabase/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboardPage() {
+  const session = await getAdminSession();
+
+  if (!session.success || !session.profile) {
+    // Should not reach here because middleware protects, but safety fallback
+    return null;
+  }
+
+  const profile = session.profile;
+  if (!profile) {
+    return null;
+  }
+
+  const adminName = profile.full_name || profile.email.split("@")[0];
+
   let products: any[] = [];
   let orders: any[] = [];
   let isConnectedToDb = false;
@@ -72,6 +87,14 @@ export default async function AdminDashboardPage() {
             >
               Ver Tienda ↗
             </Link>
+            <form action="/api/auth/logout" method="POST">
+              <button type="submit" className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">{adminName}</span>
+                <span className="text-sm text-red-600 hover:text-red-900 font-medium">
+                  Cerrar sesión
+                </span>
+              </button>
+            </form>
           </div>
         </div>
       </header>

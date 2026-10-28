@@ -8,6 +8,7 @@ import { mockWcCategories, mockWcProducts } from './mockData.js';
 import {
   fetchCatalogProducts,
   fetchCatalogProductBySlug,
+  fetchCatalogProductById,
   fetchCatalogCategories,
   createCatalogOrder,
   getCatalogOrder,
@@ -201,6 +202,9 @@ export function wcFirstImage(p?: WcProduct): string | null {
 
 export async function wcFetchProductById(id: number | string): Promise<WcProduct | null> {
   if (getWcMode() === 'mock') {
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      return fetchCatalogProductById(id);
+    }
     warnMock(`wcFetchProductById(${id})`);
     return mockWcProducts.find((p) => p.id === Number(id)) || null;
   }
@@ -211,6 +215,10 @@ export async function wcFetchProductById(id: number | string): Promise<WcProduct
 
 export async function wcFindCategoryBySlug(slug: string): Promise<WcCategory | null> {
   if (getWcMode() === 'mock') {
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      const cats = await fetchCatalogCategories();
+      return cats.find((c) => c.slug === slug) || null;
+    }
     warnMock(`wcFindCategoryBySlug(${slug})`);
     return mockWcCategories.find((c) => c.slug === slug) || null;
   }

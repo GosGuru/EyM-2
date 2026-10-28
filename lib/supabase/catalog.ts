@@ -83,6 +83,35 @@ export async function fetchCatalogProductBySlug(slug: string): Promise<WcProduct
   }
 }
 
+export async function fetchCatalogProductById(id: number | string): Promise<WcProduct | null> {
+  const numericId = Number(id);
+  if (!Number.isInteger(numericId) || numericId <= 0) return null;
+
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.from('products').select('*').eq('id', numericId).single();
+
+    if (error || !data) {
+      return mockWcProducts.find(p => p.id === numericId) || null;
+    }
+
+    return {
+      id: data.id,
+      name: data.name,
+      slug: data.slug,
+      price: String(data.price),
+      regular_price: data.regular_price ? String(data.regular_price) : undefined,
+      sale_price: data.sale_price ? String(data.sale_price) : undefined,
+      description: data.description || '',
+      short_description: data.short_description || '',
+      images: Array.isArray(data.images) ? data.images : [],
+      categories: data.category_slug ? [{ id: 1, name: data.category_slug, slug: data.category_slug }] : [],
+    };
+  } catch {
+    return mockWcProducts.find(p => p.id === numericId) || null;
+  }
+}
+
 export async function fetchCatalogCategories(): Promise<WcCategory[]> {
   try {
     const supabase = await createClient();

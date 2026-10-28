@@ -95,6 +95,20 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      // Supabase Storage (producción / uploads del admin)
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co',
+        port: '',
+        pathname: '/**',
+      },
+      // Cloudinary (CDN de imágenes optimizadas)
+      {
+        protocol: 'https',
+        hostname: 'res.cloudinary.com',
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
 };

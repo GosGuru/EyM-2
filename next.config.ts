@@ -11,7 +11,7 @@ const ContentSecurityPolicy = `
   style-src 'self' 'unsafe-inline';
   font-src 'self' data:;
   frame-src 'self' https://www.mercadopago.com https://www.mercadopago.com.ar https://www.mercadopago.com.uy;
-  connect-src 'self' https://api.mercadopago.com;
+  connect-src 'self' https://api.mercadopago.com https://booloifqeoerermpbzrr.supabase.co;
   object-src 'none';
   base-uri 'self';
   form-action 'self';

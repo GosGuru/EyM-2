@@ -63,6 +63,8 @@ export default function AdminLoginPage() {
                 type="email"
                 required
                 autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-eym-dark focus:outline-none text-sm"
                 placeholder="enzo@eym.com.uy"
               />
@@ -78,6 +80,8 @@ export default function AdminLoginPage() {
                 type="password"
                 required
                 autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-eym-dark focus:outline-none text-sm"
               />
             </div>
